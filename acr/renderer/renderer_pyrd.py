@@ -88,7 +88,7 @@ def get_renderer(test=False,**kwargs):
         import torch
         from acr.config import args
         model = pickle.load(open(os.path.join(args().smpl_model_path,'SMPL_NEUTRAL.pkl'),'rb'), encoding='latin1')
-        np_v_template = torch.from_numpy(np.array(model['v_template'])).cuda().float()[None]
+        np_v_template = torch.from_numpy(np.array(model['v_template'])).to(args().device).float()[None]
         face = model['f'].astype(np.int32)[None]
         np_v_template = np_v_template.repeat(2,1,1)
         np_v_template[1] += 0.3

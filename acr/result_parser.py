@@ -33,7 +33,7 @@ class ResultParser(nn.Module):
 
             params_dict['poses'] = torch.cat([params_dict['global_orient'], params_dict['hand_pose']], 1) # 3 + 45
             L, R = outputs['left_hand_num'], outputs['right_hand_num']
-            outputs['output_hand_type'] = torch.cat((torch.zeros(L), torch.ones(R))).cuda().to(torch.int32)
+            outputs['output_hand_type'] = torch.cat((torch.zeros(L), torch.ones(R))).to(args().device).to(torch.int32)
 
         outputs['params_dict'] = params_dict
 
@@ -60,7 +60,7 @@ class ResultParser(nn.Module):
         for key in key_list:
             if key in meta_data:
                 if isinstance(meta_data[key], torch.Tensor):
-                    meta_data[key] = meta_data[key][batch_ids]
+                    meta_data[key] = meta_data[key][batch_ids.to(meta_data[key].device)]
                 elif isinstance(meta_data[key], list):
                     meta_data[key] = np.array(meta_data[key])[batch_ids.cpu().numpy()]
         return meta_data
@@ -105,8 +105,8 @@ class ResultParser(nn.Module):
                 outputs['l_params_pred'] = self.parameter_sampling(outputs['l_params_maps'], l_batch_ids, l_flat_inds, use_transform=True)
             else:
                 detection_flag.append(False)
-                l_batch_ids = torch.tensor([0]).cuda()
-                l_flat_inds = torch.tensor([0]).cuda()
+                l_batch_ids = torch.tensor([0]).to(args().device)
+                l_flat_inds = torch.tensor([0]).to(args().device)
                 outputs['l_params_pred'] = self.parameter_sampling(outputs['l_params_maps'], torch.tensor([0]), torch.tensor([0]), use_transform=True)
 
             if len(r_batch_ids) != 0:
@@ -115,8 +115,8 @@ class ResultParser(nn.Module):
                 outputs['r_params_pred'] = self.parameter_sampling(outputs['r_params_maps'], r_batch_ids, r_flat_inds, use_transform=True)
             else:
                 detection_flag.append(False)
-                r_batch_ids = torch.tensor([0]).cuda()
-                r_flat_inds = torch.tensor([0]).cuda()
+                r_batch_ids = torch.tensor([0]).to(args().device)
+                r_flat_inds = torch.tensor([0]).to(args().device)
                 outputs['r_params_pred'] = self.parameter_sampling(outputs['r_params_maps'], torch.tensor([0]), torch.tensor([0]), use_transform=True)
 
         #######################
@@ -164,7 +164,7 @@ class ResultParser(nn.Module):
             raise ValueError
 
         # again
-        outputs['detection_flag'] = torch.Tensor(detection_flag).cuda()
+        outputs['detection_flag'] = torch.Tensor(detection_flag).to(args().device)
         outputs['params_pred'] = torch.cat((outputs['l_params_pred'], outputs['r_params_pred']))
         batch_ids = torch.cat((l_batch_ids, r_batch_ids))
         flat_inds = torch.cat((l_flat_inds, r_flat_inds))
@@ -175,13 +175,13 @@ class ResultParser(nn.Module):
             outputs['l_centers_conf'] = self.parameter_sampling(outputs['l_center_map'], l_batch_ids, l_flat_inds, use_transform=True)
             outputs['r_centers_conf'] = self.parameter_sampling(outputs['r_center_map'], r_batch_ids, r_flat_inds, use_transform=True)
 
-        outputs['left_hand_num'] = torch.tensor([len(outputs['l_params_pred'])]).cuda()
-        outputs['right_hand_num'] = torch.tensor([len(outputs['r_params_pred'])]).cuda()
+        outputs['left_hand_num'] = torch.tensor([len(outputs['l_params_pred'])]).to(args().device)
+        outputs['right_hand_num'] = torch.tensor([len(outputs['r_params_pred'])]).to(args().device)
 
         #######################
         # fuse maps and reorgnize
         #######################
-        outputs['reorganize_idx'] = meta_data['batch_ids'][batch_ids]
+        outputs['reorganize_idx'] = meta_data['batch_ids'][batch_ids.to(meta_data['batch_ids'].device)]
 
         info_vis = ['image', 'offsets','imgpath']
         meta_data = self.reorganize_gts(meta_data, info_vis, batch_ids)

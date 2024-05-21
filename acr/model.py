@@ -32,11 +32,11 @@ class ACR(nn.Module):
     def forward(self, meta_data, **cfg):
         if args().model_precision=='fp16':
             with autocast():
-                x = self.backbone(meta_data['image'].contiguous().cuda())
+                x = self.backbone(meta_data['image'].contiguous().to(args().device))
                 outputs = self.head_forward(x)
                 outputs, meta_data = self._result_parser.parse(outputs, meta_data, cfg)
         else:
-            x = self.backbone(meta_data['image'].contiguous().cuda())
+            x = self.backbone(meta_data['image'].contiguous().to(args().device))
             outputs = self.head_forward(x)
             outputs, meta_data = self._result_parser.parse(outputs, meta_data, cfg)
 
