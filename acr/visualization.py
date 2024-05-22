@@ -3,6 +3,7 @@ import math
 import torch
 import matplotlib
 import numpy as np
+from os import path
 import torch.nn.functional as F
 from PIL import Image, ImageDraw
 from manotorch.manolayer import ManoLayer
@@ -20,7 +21,8 @@ class Visualizer(object):
 
         # constants
         self.resolution = resolution
-        self.MANO_SKELETON = load_skeleton('mano/skeleton.txt', 21)
+        dir_assets = path.join(path.dirname(__file__), '../../../assets/mano_hand')
+        self.MANO_SKELETON = load_skeleton(path.join(path.dirname(__file__), '../mano/skeleton.txt'), 21)
         self.MANO_RGB_DICT = get_keypoint_rgb(self.MANO_SKELETON)
         self.mano2interhand_mapper = np.array(
             [4, 3, 2, 1, 8, 7, 6, 5, 12, 11, 10, 9, 16, 15, 14, 13, 20, 19, 18, 17, 0])
@@ -41,37 +43,16 @@ class Visualizer(object):
             '1': ManoLayer(
                 ncomps=45,
                 center_idx=args().align_idx if args().mano_mesh_root_align else None,
-                # 9, # TODO: 1. wrist align? root align ? 0 or 9?
                 side='right',
-                mano_root='mano/',
+                mano_assets_root=dir_assets,
                 use_pca=False,
                 flat_hand_mean=False,
             ),
             '0': ManoLayer(
                 ncomps=45,
                 center_idx=args().align_idx if args().mano_mesh_root_align else None,
-                # 9, # TODO: 1. wrist align? root align ? 0 or 9?
                 side='left',
-                mano_root='mano/',
-                use_pca=False,
-                flat_hand_mean=False,
-            ),
-
-            'right': ManoLayer(
-                ncomps=45,
-                center_idx=args().align_idx if args().mano_mesh_root_align else None,
-                # 9, # TODO: 1. wrist align? root align ? 0 or 9?
-                side='right',
-                mano_root='mano/',
-                use_pca=False,
-                flat_hand_mean=False,
-            ),
-            'left': ManoLayer(
-                ncomps=45,
-                center_idx=args().align_idx if args().mano_mesh_root_align else None,
-                # 9, # TODO: 1. wrist align? root align ? 0 or 9?
-                side='left',
-                mano_root='mano/',
+                mano_assets_root=dir_assets,
                 use_pca=False,
                 flat_hand_mean=False,
             ),

@@ -2,7 +2,7 @@ import os
 import cv2
 import logging
 import numpy as np
-from acr.config import args
+from .config import args
 
 import torch
 import torch.nn.functional as F
@@ -89,16 +89,15 @@ def convert_kp2d_from_input_to_orgimg(kp2ds, offsets):
     return kp2ds_on_orgimg
 
 
-def vertices_kp3d_projection(outputs, params_dict, meta_data=None, presp=args().model_version > 3):
+def vertices_kp3d_projection(outputs, params_dict, meta_data=None):
     params_dict, vertices, j3ds = params_dict, outputs['verts'], outputs['j3d']
     verts_camed = batch_orth_proj(vertices, params_dict['cam'], mode='3d', keep_dim=True)
     pj3d = batch_orth_proj(j3ds, params_dict['cam'], mode='2d')
     predicts_j3ds = j3ds[:, :24].contiguous().detach().cpu().numpy()
     predicts_pj2ds = (pj3d[:, :, :2][:, :24].detach().cpu().numpy() + 1) * 256
 
-    cam_trans = estimate_translation(predicts_j3ds, predicts_pj2ds, \
-                                     focal_length=args().focal_length, img_size=np.array([512, 512])).to(
-        vertices.device)
+    cam_trans = estimate_translation(predicts_j3ds, predicts_pj2ds, focal_length=args().focal_length,
+                                     img_size=np.array([512, 512])).to(vertices.device)
     projected_outputs = {'verts_camed': verts_camed, 'pj2d': pj3d[:, :, :2], 'cam_trans': cam_trans}
 
     if meta_data is not None:
@@ -460,9 +459,10 @@ def copy_state_dict(cur_state_dict, pre_state_dict, prefix='module.', drop_prefi
 
 
 def load_model(path, model, prefix='module.', drop_prefix='', optimizer=None, **kwargs):
+    path = os.path.join(os.path.dirname(__file__), '..', path)
     logging.info('using fine_tune model: {}'.format(path))
     if os.path.exists(path):
-        pretrained_model = torch.load(path)
+        pretrained_model = torch.load(path, map_location='cpu')
         current_model = model.state_dict()
         if isinstance(pretrained_model, dict):
             if 'model_state_dict' in pretrained_model:
@@ -526,21 +526,6 @@ def reorganize_results(outputs, img_paths, reorganize_idx):
             results[img_path][subject_idx]['pj2d_org'] = pj2d_org_results[batch_idx]
             results[img_path][subject_idx]['hand_type'] = hand_type[batch_idx]
             results[img_path][subject_idx]['detection_flag_cache'] = detected[batch_idx]
-
-    # sort output format.
-    new_results = {}
-    for name in results.keys():
-        data_list = results[name]
-        new_results[name] = {'left': [], 'right': []}
-
-        for i in data_list:
-            hand_type = i['hand_type']
-            if hand_type == 0:
-                new_results[name]['left'].append(i)
-            elif hand_type == 1:
-                new_results[name]['right'].append(i)
-            else:
-                raise ValueError
 
     return results
 
@@ -632,7 +617,6 @@ class WebcamVideoStream(object):
     def start(self):
         # start the thread to read frames from the video stream
         Thread(target=self.update, args=()).start()
-        return self
 
     def update(self):
         # keep looping infinitely until the thread is stopped
@@ -650,6 +634,7 @@ class WebcamVideoStream(object):
     def stop(self):
         # indicate that the thread should be stopped
         self.stopped = True
+        cv2.destroyAllWindows()
 
 
 def smooth_global_rot_matrix(pred_rots, OE_filter):

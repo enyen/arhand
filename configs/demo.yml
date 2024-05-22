@@ -10,11 +10,10 @@ ARGS:
  save_visualization_on_img: True
  mano_mesh_root_align: True
  renderer: 'pyrender'
- focal_length: 1265
- FOV: 22.5
+ focal_length: 600
+ FOV: 50
 
- mesh_cloth: 'ghostwhite'  #'LightCyan'
+ mesh_cloth: 'ghostwhite' #'LightCyan'
 
- # smooth
-#  temporal_optimization: True
-#  smooth_coeff: 4.
+ temporal_optimization: True
+ smooth_coeff: 4.

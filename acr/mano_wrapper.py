@@ -9,7 +9,7 @@ from manotorch.manolayer import ManoLayer
 class MANOWrapper(nn.Module):
     def __init__(self):
         super().__init__()
-        dir_assets = path.join(path.dirname(__file__), '../../smd/assets/mano_hand')
+        dir_assets = path.join(path.dirname(__file__), '../../../assets/mano_hand')
 
         self.mano_layer = nn.ModuleDict({
             'r': ManoLayer(

@@ -1,21 +1,16 @@
-import os, sys
+import os
 import argparse
+
+import torch.cuda
 import yaml
 import time
 
 currentfile = os.path.abspath(__file__)
-code_dir = currentfile.replace('config.py', '')
-
 project_dir = currentfile.replace(os.sep + 'acr' + os.sep + 'config.py', '')
-source_dir = currentfile.replace(os.sep + 'config.py', '')
 root_dir = project_dir.replace(project_dir.split(os.sep)[-1], '')
-
 time_stamp = time.strftime('%Y-%m-%d_%H:%M:%S', time.localtime(int(round(time.time() * 1000)) / 1000))
 yaml_timestamp = os.path.abspath(os.path.join(project_dir, 'active_configs' + os.sep + "active_context_{}.yaml".format(
     time_stamp).replace(":", "_")))
-
-model_dir = os.path.join(project_dir, 'model_data')
-trained_model_dir = os.path.join(project_dir, 'trained_models')
 
 
 def parse_args(input_args=None):
@@ -30,7 +25,6 @@ def parse_args(input_args=None):
     parser.add_argument('--output_dir', type=str, help='path to save outputs')
     parser.add_argument('--interactive_vis', action='store_true', help='whether to show the results in an interactive mode')
     parser.add_argument('--soi_camera', type=str, default='far', help='camera mode of show_mesh_stand_on_image: far / close')
-    parser.add_argument('--device', type=str, default='cuda', help='running device [cpu, cuda]')
     parser.add_argument('--temporal_optimization', '-t', action='store_false', help='whether to optimize the temporal smoothness')
     parser.add_argument('--smooth_coeff', type=float, default=4)
     parser.add_argument('--save_dict_results', '-s', action='store_true', help='whether to save the predictions to a dict (.npz)')
@@ -132,7 +126,7 @@ def parse_args(input_args=None):
 
     maps_group = parser.add_argument_group(title='Maps options')
     maps_group.add_argument('--centermap_size', type=int, default=64, help='the size of center map')
-    maps_group.add_argument('--centermap_conf_thresh', type=float, default=0.35, help='the threshold of the centermap confidence for the valid subject')
+    maps_group.add_argument('--centermap_conf_thresh', type=float, default=0.7, help='the threshold of the centermap confidence for the valid subject')
     maps_group.add_argument('--collision_aware_centermap', type=bool, default=True, help='whether to use collision_aware_centermap')
     maps_group.add_argument('--collision_factor', type=float, default=0.2, help='whether to use collision_aware_centermap')
     maps_group.add_argument('--center_def_kp', type=bool, default=True, help='center definition: keypoints or bbox')
@@ -176,10 +170,6 @@ def parse_args(input_args=None):
     mano_group.add_argument('--mano_theta_num', type=int, default=16, help='joint number of mano model we estimate')
     mano_group.add_argument('--mano_model_path', type=str, default='model_data/mano', help='mano model path')
 
-    mano_group.add_argument('--mano_uvmap', type=str, default=os.path.join(model_dir, 'parameters', 'mano_vt_ft.npz'), help='mano UV Map coordinates for each vertice')
-    mano_group.add_argument('--wardrobe', type=str, default=os.path.join(model_dir, 'wardrobe'), help='path of mano UV textures')
-    mano_group.add_argument('--lr_test', type=float, default=0.1, help='path to nvxia model')
-
     debug_group = parser.add_argument_group(title='Debug options')
     debug_group.add_argument('--track_memory_usage', type=bool, default=False)
 
@@ -190,10 +180,6 @@ def parse_args(input_args=None):
     with open(config_yml_path) as file:
         configs_update = yaml.full_load(file)
 
-    # print('************************')
-    # print('config name: ', parsed_args.configs_yml)
-    # print('************************')
-    # TODO: 脚本中的参数不能是输入参数的名字的子集, 例如, 输入参数不可出现--lr_test等, 否则config中的lr将会失效
     for key, value in configs_update['ARGS'].items():
         # make sure to update the configurations from .yml that not appears in input_args.
         appear_in_input_args = False
@@ -221,6 +207,7 @@ def parse_args(input_args=None):
                                         # parsed_args.centermap_size,
                                         parsed_args.backbone,
                                         parsed_args.dataset)
+    parsed_args.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     return parsed_args
 
@@ -232,7 +219,7 @@ class ConfigContext(object):
     accessed anywhere.
     """
     yaml_filename = yaml_timestamp
-    parsed_args = parse_args(sys.argv[1:])
+    parsed_args = parse_args('')
 
     def __init__(self, parsed_args=None):
         if parsed_args is not None:
