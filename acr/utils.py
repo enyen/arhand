@@ -89,7 +89,7 @@ def convert_kp2d_from_input_to_orgimg(kp2ds, offsets):
     return kp2ds_on_orgimg
 
 
-def vertices_kp3d_projection(outputs, params_dict, meta_data=None):
+def vertices_kp3d_projection(outputs, params_dict, meta_data=None, depth=None):
     params_dict, vertices, j3ds = params_dict, outputs['verts'], outputs['j3d']
     verts_camed = batch_orth_proj(vertices, params_dict['cam'], mode='3d', keep_dim=True)
     pj3d = batch_orth_proj(j3ds, params_dict['cam'], mode='2d')
@@ -602,37 +602,51 @@ def img_preprocess(image, imgpath=None, input_size=512, single_img_input=False, 
 
 class WebcamVideoStream(object):
     def __init__(self, src=0):
-        # initialize the video camera stream and read the first frame
-        # from the stream
-        try:
+        if src == 'realsense':
+            import pyrealsense2 as pyrs
+            cfg = pyrs.config()
+            cfg.enable_stream(pyrs.stream.color, 640, 480, pyrs.format.bgr8, 30)
+            cfg.enable_stream(pyrs.stream.depth, 640, 480, pyrs.format.z16, 30)
+            self.align = pyrs.align(pyrs.stream.color)
+            self.stream = pyrs.pipeline()
+            cam_int = self.stream.start(cfg).get_stream(pyrs.stream.color).as_video_stream_profile().get_intrinsics()
+            self.cam_k = np.array([[cam_int.fx, 0, cam_int.ppx],
+                                   [0, cam_int.fy, cam_int.ppy],
+                                   [0, 0, 1]])
+            self.frame = self.grab_realsense()
+        else:
             self.stream = cv2.VideoCapture(src)
-        except:
-            self.stream = cv2.VideoCapture("/dev/video{}".format(src), cv2.CAP_V4L2)
+            _, self.frame = self.stream.read()
 
-        (self.grabbed, self.frame) = self.stream.read()
-        # initialize the variable used to indicate if the thread should
-        # be stopped
+        self.src = src
         self.stopped = False
 
+    def grab_realsense(self):
+        frames = self.align.process(self.stream.wait_for_frames())
+        color = frames.get_color_frame().get_data()
+        depth = frames.get_depth_frame().get_data()
+        if not color or not depth:
+            return
+        color = np.asarray(color)
+        depth = np.asarray(depth)
+        return color, depth
+
     def start(self):
-        # start the thread to read frames from the video stream
         Thread(target=self.update, args=()).start()
 
     def update(self):
-        # keep looping infinitely until the thread is stopped
         while True:
-            # if the thread indicator variable is set, stop the thread
             if self.stopped:
                 return
-            # otherwise, read the next frame from the stream
-            (self.grabbed, self.frame) = self.stream.read()
+            if self.src == 'realsense':
+                self.frame = self.grab_realsense()
+            else:
+                _, self.frame = self.stream.read()
 
     def read(self):
-        # return the frame most recently read
         return self.frame
 
     def stop(self):
-        # indicate that the thread should be stopped
         self.stopped = True
         cv2.destroyAllWindows()
 

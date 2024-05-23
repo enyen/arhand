@@ -1,7 +1,7 @@
 ARGS:
  tab: 'process_images'
  GPUS: 0
- cam_id: 0
+ cam_id: 'realsense'
 
  backbone: 'hrnet' #'resnet' #
  model_precision: 'fp32' # 'fp16'
