@@ -93,17 +93,64 @@ def vertices_kp3d_projection(outputs, params_dict, meta_data=None, depth=None):
     params_dict, vertices, j3ds = params_dict, outputs['verts'], outputs['j3d']
     verts_camed = batch_orth_proj(vertices, params_dict['cam'], mode='3d', keep_dim=True)
     pj3d = batch_orth_proj(j3ds, params_dict['cam'], mode='2d')
-    predicts_j3ds = j3ds[:, :24].contiguous().detach().cpu().numpy()
     predicts_pj2ds = (pj3d[:, :, :2][:, :24].detach().cpu().numpy() + 1) * 256
 
-    cam_trans = estimate_translation(predicts_j3ds, predicts_pj2ds, focal_length=args().focal_length,
-                                     img_size=np.array([512, 512])).to(vertices.device)
+    # predicts_j3ds = j3ds[:, :24].contiguous().detach().cpu().numpy()
+    # cam_trans = estimate_translation(predicts_j3ds, predicts_pj2ds, focal_length=args().focal_length,
+    #                                  img_size=np.array([512, 512])).to(vertices.device)
+
+    cam_trans_l = compute_3d_offset((verts_camed[0].detach().cpu().numpy() + 1) * 256,
+                                    vertices[0].detach().cpu().numpy(),
+                                    predicts_pj2ds[0],
+                                    depth, args().focal_length, np.array([512, 512]))
+    cam_trans_r = compute_3d_offset((verts_camed[1].detach().cpu().numpy() + 1) * 256,
+                                    vertices[1].detach().cpu().numpy(),
+                                    predicts_pj2ds[1],
+                                    depth, args().focal_length, np.array([512, 512]))
+    cam_trans = torch.from_numpy(np.stack((cam_trans_l, cam_trans_r))).to('cuda')
+
     projected_outputs = {'verts_camed': verts_camed, 'pj2d': pj3d[:, :, :2], 'cam_trans': cam_trans}
 
     if meta_data is not None:
         projected_outputs['pj2d_org'] = convert_kp2d_from_input_to_orgimg(projected_outputs['pj2d'],
                                                                           meta_data['offsets'])
     return projected_outputs
+
+
+def compute_3d_offset(pred_vertices_img, pred_vertices_smpl, pred_joints_img, depth, focal_length, img_size):
+    """
+    source:
+     https://github.com/yzqin/dex-hand-teleop/blob/3f7b56deed878052ec733a32b503aceee4ca8c8c/hand_detector/hand_monitor.py#L102
+    """
+    height, width = depth.shape
+    # Image space vertices
+    mask_int = np.rint(pred_vertices_img[:, :2]).astype(int)
+    mask_int = np.clip(mask_int, [0, 0], [width - 1, height - 1])
+    depth_vertices = depth[mask_int[:, 1], mask_int[:, 0]]
+    depth_median = np.nanmedian(depth_vertices)
+    depth_valid_mask = np.nonzero(np.abs(depth_vertices - depth_median) < 0.2)[0]
+    valid_vertex_depth = depth_vertices[depth_valid_mask]
+
+    # Hand frame vertices
+    v_smpl = pred_vertices_smpl[depth_valid_mask]
+    z_smpl = v_smpl[:, 2]
+    z_near_to_far_order = np.argsort(z_smpl)
+
+    # Filter depth with same pixel pos to the front position
+    valid_mask_int = mask_int[depth_valid_mask, :][z_near_to_far_order, :]
+    mask_int_encoding = valid_mask_int[:, 0] * 1e5 + valid_mask_int[:, 1]
+    _, unique_indices = np.unique(mask_int_encoding, return_index=True)
+    front_indices = z_near_to_far_order[unique_indices]
+
+    # Calculate mean depth from image space and hand frame
+    mean_depth_image = np.mean(valid_vertex_depth[front_indices])
+    mean_depth_smpl = np.mean(z_smpl[front_indices])
+    depth_offset = mean_depth_image - mean_depth_smpl
+
+    offset_img = pred_joints_img[args().align_idx, 0:2] - img_size / 2
+    offset = np.concatenate([offset_img / focal_length * depth_offset, [depth_offset]])
+
+    return offset
 
 
 def estimate_translation_cv2(joints_3d, joints_2d, focal_length=600, img_size=np.array([512., 512.]), proj_mat=None,
@@ -578,7 +625,7 @@ def process_image_ori(originImage, bbox=None):
 def img_preprocess(image, imgpath=None, input_size=512, single_img_input=False, bbox=None):
     # args:
     # image: bgr frame
-    image = image[:, :, ::-1]
+    # image = image[:, :, ::-1]
     image_org, offsets = process_image_ori(image)
 
     image = torch.from_numpy(cv2.resize(image_org, (input_size, input_size), interpolation=cv2.INTER_CUBIC))
@@ -609,14 +656,16 @@ class WebcamVideoStream(object):
             cfg.enable_stream(pyrs.stream.depth, 640, 480, pyrs.format.z16, 30)
             self.align = pyrs.align(pyrs.stream.color)
             self.stream = pyrs.pipeline()
-            cam_int = self.stream.start(cfg).get_stream(pyrs.stream.color).as_video_stream_profile().get_intrinsics()
+            dev = self.stream.start(cfg)
+            cam_int = dev.get_stream(pyrs.stream.color).as_video_stream_profile().get_intrinsics()
+            self.depth_scale = dev.get_device().first_depth_sensor().get_depth_scale()
             self.cam_k = np.array([[cam_int.fx, 0, cam_int.ppx],
                                    [0, cam_int.fy, cam_int.ppy],
                                    [0, 0, 1]])
             self.frame = self.grab_realsense()
         else:
             self.stream = cv2.VideoCapture(src)
-            _, self.frame = self.stream.read()
+            self.frame = self.grab_webcam()
 
         self.src = src
         self.stopped = False
@@ -628,8 +677,11 @@ class WebcamVideoStream(object):
         if not color or not depth:
             return
         color = np.asarray(color)
-        depth = np.asarray(depth)
+        depth = np.asarray(depth) * self.depth_scale
         return color, depth
+
+    def grab_webcam(self):
+        return self.stream.read()[1], 0
 
     def start(self):
         Thread(target=self.update, args=()).start()
@@ -641,7 +693,7 @@ class WebcamVideoStream(object):
             if self.src == 'realsense':
                 self.frame = self.grab_realsense()
             else:
-                _, self.frame = self.stream.read()
+                self.frame = self.grab_webcam()
 
     def read(self):
         return self.frame
