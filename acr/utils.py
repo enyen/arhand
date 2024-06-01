@@ -36,10 +36,10 @@ def rotation_matrix_to_angle_axis(rotation_matrix):
     if rotation_matrix.shape[1:] == (3, 3):
         hom_mat = torch.tensor([0, 0, 1]).float()
         rot_mat = rotation_matrix.reshape(-1, 3, 3)
-        batch_size, device = rot_mat.shape[0], rot_mat.device
+        batch_size = rot_mat.shape[0]
         hom_mat = hom_mat.view(1, 3, 1)
         hom_mat = hom_mat.repeat(batch_size, 1, 1).contiguous()
-        hom_mat = hom_mat.to(device)
+        hom_mat = hom_mat.to(args().device)
         rotation_matrix = torch.cat([rot_mat, hom_mat], dim=-1)
 
     quaternion = rotation_matrix_to_quaternion(rotation_matrix)
@@ -82,7 +82,7 @@ def batch_orth_proj(X, camera, mode='2d', keep_dim=False):
 
 
 def convert_kp2d_from_input_to_orgimg(kp2ds, offsets):
-    offsets = offsets.float().to(kp2ds.device)
+    offsets = offsets.float().to(args().device)
     img_pad_size, crop_trbl, pad_trbl = offsets[:, :2], offsets[:, 2:6], offsets[:, 6:10]
     leftTop = torch.stack([crop_trbl[:, 3] - pad_trbl[:, 3], crop_trbl[:, 0] - pad_trbl[:, 0]], 1)
     kp2ds_on_orgimg = (kp2ds + 1) * img_pad_size.unsqueeze(1) / 2 + leftTop.unsqueeze(1)
@@ -97,7 +97,7 @@ def vertices_kp3d_projection(outputs, params_dict, meta_data=None, depth=None):
 
     # predicts_j3ds = j3ds[:, :24].contiguous().detach().cpu().numpy()
     # cam_trans = estimate_translation(predicts_j3ds, predicts_pj2ds, focal_length=args().focal_length,
-    #                                  img_size=np.array([512, 512])).to(vertices.device)
+    #                                  img_size=np.array([512, 512])).to(args().device)
 
     cam_trans_l = compute_3d_offset((verts_camed[0].detach().cpu().numpy() + 1) * 256,
                                     vertices[0].detach().cpu().numpy(),
@@ -107,7 +107,7 @@ def vertices_kp3d_projection(outputs, params_dict, meta_data=None, depth=None):
                                     vertices[1].detach().cpu().numpy(),
                                     predicts_pj2ds[1],
                                     depth, args().focal_length, np.array([512, 512]))
-    cam_trans = torch.from_numpy(np.stack((cam_trans_l, cam_trans_r))).to('cuda')
+    cam_trans = torch.from_numpy(np.stack((cam_trans_l, cam_trans_r))).to(args().device)
 
     projected_outputs = {'verts_camed': verts_camed, 'pj2d': pj3d[:, :, :2], 'cam_trans': cam_trans}
 
@@ -450,7 +450,7 @@ def justify_detection_state(detection_flag, reorganize_idx):
     if detection_flag.sum() == 0:
         detection_flag = False
     else:
-        reorganize_idx = reorganize_idx[detection_flag.bool().to(reorganize_idx.device)].long()
+        reorganize_idx = reorganize_idx[detection_flag.bool().to(args().device)].long()
         detection_flag = True
     return detection_flag, reorganize_idx
 

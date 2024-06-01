@@ -1,3 +1,4 @@
+import os
 import cv2
 import math
 import torch
@@ -12,8 +13,9 @@ from acr.config import args
 from acr.utils import process_idx
 from collections import OrderedDict
 
-default_cfg = {'save_dir': None, 'vids': None, 'settings': []}  # 'put_org'
 matplotlib.use('agg')
+os.environ["PYOPENGL_PLATFORM"] = "egl"
+default_cfg = {'save_dir': None, 'vids': None, 'settings': []}  # 'put_org'
 
 
 class Visualizer(object):
