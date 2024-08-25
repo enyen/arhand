@@ -7,9 +7,9 @@ from manotorch.manolayer import ManoLayer
 
 
 class MANOWrapper(nn.Module):
-    def __init__(self):
+    def __init__(self, asset_rel_path):
         super().__init__()
-        dir_assets = path.join(path.dirname(__file__), '../../../assets/mano_hand')
+        dir_assets = path.join(path.dirname(__file__), asset_rel_path)
 
         self.mano_layer = nn.ModuleDict({
             'r': ManoLayer(
@@ -36,9 +36,9 @@ class MANOWrapper(nn.Module):
         L, R = outputs['left_hand_num'], outputs['right_hand_num']
         outputs['output_hand_type'] = torch.cat((torch.zeros(L), torch.ones(R))).to(torch.int32)
 
-        handl = self.mano_layer['l'](params_dict['poses'][:L], th_betas=params_dict['betas'][:L])
+        handl = self.mano_layer['l'](params_dict['poses'][:L], params_dict['betas'][:L])
         l_vertices, l_joints = handl.verts, handl.joints
-        handr = self.mano_layer['r'](params_dict['poses'][L:L + R], th_betas=params_dict['betas'][L:L + R])
+        handr = self.mano_layer['r'](params_dict['poses'][L:L + R], params_dict['betas'][L:L + R])
         r_vertices, r_joints = handr.verts, handr.joints
 
         mano_outs = {'verts': torch.cat((l_vertices, r_vertices)), 'j3d': torch.cat((l_joints, r_joints))}
