@@ -31,7 +31,7 @@ class MANOWrapper(nn.Module):
         })
         self.mano_layer['l'].th_shapedirs[:, 0, :] *= -1
 
-    def forward(self, outputs, meta_data, depth):
+    def forward(self, outputs, meta_data, depth, focal_length):
         params_dict = outputs['params_dict']
         L, R = outputs['left_hand_num'], outputs['right_hand_num']
         outputs['output_hand_type'] = torch.cat((torch.zeros(L), torch.ones(R))).to(torch.int32)
@@ -43,6 +43,7 @@ class MANOWrapper(nn.Module):
 
         mano_outs = {'verts': torch.cat((l_vertices, r_vertices)), 'j3d': torch.cat((l_joints, r_joints))}
         outputs.update({**mano_outs})
-        outputs.update(vertices_kp3d_projection(outputs, params_dict=params_dict, meta_data=meta_data, depth=depth))
+        outputs.update(vertices_kp3d_projection(outputs, params_dict=params_dict, depth=depth,
+                                                focal_length=focal_length, meta_data=meta_data))
 
         return outputs

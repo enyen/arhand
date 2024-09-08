@@ -89,7 +89,7 @@ def convert_kp2d_from_input_to_orgimg(kp2ds, offsets):
     return kp2ds_on_orgimg
 
 
-def vertices_kp3d_projection(outputs, params_dict, meta_data=None, depth=None):
+def vertices_kp3d_projection(outputs, params_dict, depth, focal_length, meta_data=None):
     params_dict, vertices, j3ds = params_dict, outputs['verts'], outputs['j3d']
     verts_camed = batch_orth_proj(vertices, params_dict['cam'], mode='3d', keep_dim=True)
     pj3d = batch_orth_proj(j3ds, params_dict['cam'], mode='2d')
@@ -102,11 +102,11 @@ def vertices_kp3d_projection(outputs, params_dict, meta_data=None, depth=None):
     cam_trans_l = compute_3d_offset((verts_camed[0].detach().cpu().numpy() + 1) * 256,
                                     vertices[0].detach().cpu().numpy(),
                                     predicts_pj2ds[0],
-                                    depth, args().focal_length, np.array([512, 512]))
+                                    depth, focal_length, np.array([args().input_size, args().input_size]))
     cam_trans_r = compute_3d_offset((verts_camed[1].detach().cpu().numpy() + 1) * 256,
                                     vertices[1].detach().cpu().numpy(),
                                     predicts_pj2ds[1],
-                                    depth, args().focal_length, np.array([512, 512]))
+                                    depth, focal_length, np.array([args().input_size, args().input_size]))
     cam_trans = torch.from_numpy(np.stack((cam_trans_l, cam_trans_r))).to(args().device)
 
     projected_outputs = {'verts_camed': verts_camed, 'pj2d': pj3d[:, :, :2], 'cam_trans': cam_trans}
