@@ -651,9 +651,10 @@ class WebcamVideoStream(object):
     def __init__(self, src=0):
         if src == 'realsense':
             import pyrealsense2 as pyrs
+            self.img_h, self.img_w, self.fps = 480, 640, 30
             cfg = pyrs.config()
-            cfg.enable_stream(pyrs.stream.color, 640, 480, pyrs.format.bgr8, 30)
-            cfg.enable_stream(pyrs.stream.depth, 640, 480, pyrs.format.z16, 30)
+            cfg.enable_stream(pyrs.stream.color, self.img_w, self.img_h, pyrs.format.bgr8, self.fps)
+            cfg.enable_stream(pyrs.stream.depth, self.img_w, self.img_h, pyrs.format.z16, self.fps)
             self.align = pyrs.align(pyrs.stream.color)
             self.stream = pyrs.pipeline()
             dev = self.stream.start(cfg)
