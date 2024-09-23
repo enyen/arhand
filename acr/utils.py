@@ -548,14 +548,17 @@ def reorganize_results(outputs, img_paths, reorganize_idx):
     results = {}
     detected = outputs['detection_flag_cache'].detach().cpu().numpy().astype(np.bool_)
     cam_results = outputs['params_dict']['cam'].detach().cpu().numpy().astype(np.float16)[detected]
-    trans_results = outputs['cam_trans'].detach().cpu().numpy().astype(np.float16)[detected]
     mano_pose_results = outputs['params_dict']['poses'].detach().cpu().numpy().astype(np.float16)[detected]
     mano_shape_results = outputs['params_dict']['betas'].detach().cpu().numpy().astype(np.float16)[detected]
     joints = outputs['j3d'].detach().cpu().numpy().astype(np.float16)[detected]
     verts_results = outputs['verts'].detach().cpu().numpy().astype(np.float16)[detected]
-    pj2d_results = outputs['pj2d'].detach().cpu().numpy().astype(np.float16)[detected]
-    pj2d_org_results = outputs['pj2d_org'].detach().cpu().numpy().astype(np.float16)[detected]
     hand_type = outputs['output_hand_type'].detach().cpu().numpy().astype(np.int32)[detected]
+    try:
+        pj2d_results = outputs['pj2d'].detach().cpu().numpy().astype(np.float16)[detected]
+        pj2d_org_results = outputs['pj2d_org'].detach().cpu().numpy().astype(np.float16)[detected]
+        trans_results = outputs['cam_trans'].detach().cpu().numpy().astype(np.float16)[detected]
+    except:
+        pass
 
     vids_org = np.unique(reorganize_idx)
     for idx, vid in enumerate(vids_org):
@@ -564,15 +567,18 @@ def reorganize_results(outputs, img_paths, reorganize_idx):
         results[img_path] = [{} for idx in range(len(verts_vids))]
         for subject_idx, batch_idx in enumerate(verts_vids):
             results[img_path][subject_idx]['cam'] = cam_results[batch_idx]
-            results[img_path][subject_idx]['cam_trans'] = trans_results[batch_idx]
             results[img_path][subject_idx]['poses'] = mano_pose_results[batch_idx]
             results[img_path][subject_idx]['betas'] = mano_shape_results[batch_idx]
-            results[img_path][subject_idx]['j3d'] = joints[batch_idx]
             results[img_path][subject_idx]['verts'] = verts_results[batch_idx]
-            results[img_path][subject_idx]['pj2d'] = pj2d_results[batch_idx]
-            results[img_path][subject_idx]['pj2d_org'] = pj2d_org_results[batch_idx]
             results[img_path][subject_idx]['hand_type'] = hand_type[batch_idx]
             results[img_path][subject_idx]['detection_flag_cache'] = detected[batch_idx]
+            results[img_path][subject_idx]['j3d'] = joints[batch_idx]
+            try:
+                results[img_path][subject_idx]['pj2d'] = pj2d_results[batch_idx]
+                results[img_path][subject_idx]['pj2d_org'] = pj2d_org_results[batch_idx]
+                results[img_path][subject_idx]['cam_trans'] = trans_results[batch_idx]
+            except:
+                pass
 
     return results
 
